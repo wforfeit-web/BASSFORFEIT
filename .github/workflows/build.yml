@@ -1,0 +1,59 @@
+name: Build BASSFORFEIT
+
+# Runs on every push, and can be started by hand from the Actions tab
+on:
+  push:
+    paths:
+      - 'vst/**'
+      - '.github/workflows/**'
+  workflow_dispatch:
+
+defaults:
+  run:
+    working-directory: vst
+
+jobs:
+  windows:
+    name: Windows VST3
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure
+        run: cmake -B build -A x64
+
+      - name: Build
+        run: cmake --build build --config Release --target BASSFORFEIT_VST3 --parallel
+
+      - name: Upload VST3
+        uses: actions/upload-artifact@v4
+        with:
+          name: BASSFORFEIT-Windows-VST3
+          path: vst/build/BASSFORFEIT_artefacts/Release/VST3/
+
+  mac:
+    name: Mac VST3 + AU
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure (Apple Silicon + Intel)
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" -DCMAKE_OSX_DEPLOYMENT_TARGET=10.13
+
+      - name: Build
+        run: cmake --build build --config Release --target BASSFORFEIT_VST3 BASSFORFEIT_AU --parallel
+
+      - name: Sign for local use and zip
+        run: |
+          cd build/BASSFORFEIT_artefacts/Release
+          codesign --force --deep --sign - VST3/BASSFORFEIT.vst3
+          codesign --force --deep --sign - AU/BASSFORFEIT.component
+          mkdir -p "$GITHUB_WORKSPACE/out"
+          ditto -c -k --keepParent VST3/BASSFORFEIT.vst3 "$GITHUB_WORKSPACE/out/BASSFORFEIT-Mac-VST3.zip"
+          ditto -c -k --keepParent AU/BASSFORFEIT.component "$GITHUB_WORKSPACE/out/BASSFORFEIT-Mac-AU.zip"
+
+      - name: Upload Mac plugins
+        uses: actions/upload-artifact@v4
+        with:
+          name: BASSFORFEIT-Mac
+          path: out/

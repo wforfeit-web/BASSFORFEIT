@@ -57,3 +57,36 @@ jobs:
         with:
           name: BASSFORFEIT-Mac
           path: out/
+
+  release:
+    name: Publish downloads
+    needs: [windows, mac]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dl
+
+      - name: Zip the Windows plugin
+        run: |
+          mkdir -p out
+          cd dl/BASSFORFEIT-Windows-VST3
+          zip -rq ../../out/BASSFORFEIT-Windows-VST3.zip BASSFORFEIT.vst3
+          cd ../..
+          cp dl/BASSFORFEIT-Mac/*.zip out/
+
+      - name: Publish as the latest release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: BASSFORFEIT (latest build)
+          body: |
+            **Windows:** download BASSFORFEIT-Windows-VST3.zip, unzip it, and copy BASSFORFEIT.vst3 to C:\Program Files\Common Files\VST3, then rescan plugins in your DAW.
+            **Mac:** download the VST3 or AU zip and copy the plugin to ~/Library/Audio/Plug-Ins/VST3 or ~/Library/Audio/Plug-Ins/Components.
+          files: out/*.zip
+          make_latest: true

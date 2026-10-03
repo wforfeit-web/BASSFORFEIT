@@ -145,6 +145,7 @@ BassforfeitEditor::BassforfeitEditor (BassforfeitProcessor& p)
     groups.push_back (std::move (scream));
     groups.push_back (std::move (amp));
 
+    sendLookAndFeelChange();   // apply the white and blue colours to every knob's value readout
     setSize (820, 544);
 }
 

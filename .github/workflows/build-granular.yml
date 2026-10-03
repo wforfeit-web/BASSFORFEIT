@@ -1,16 +1,16 @@
-name: Build BASSFORFEIT
+name: Build GRAINFORFEIT
 
 # Runs on every push, and can be started by hand from the Actions tab
 on:
   push:
     paths:
-      - 'vst/**'
-      - '.github/workflows/build.yml'
+      - 'granular/**'
+      - '.github/workflows/build-granular.yml'
   workflow_dispatch:
 
 defaults:
   run:
-    working-directory: vst
+    working-directory: granular
 
 jobs:
   windows:
@@ -23,13 +23,13 @@ jobs:
         run: cmake -B build -A x64
 
       - name: Build
-        run: cmake --build build --config Release --target BASSFORFEIT_VST3 --parallel
+        run: cmake --build build --config Release --target GRAINFORFEIT_VST3 --parallel
 
       - name: Upload VST3
         uses: actions/upload-artifact@v4
         with:
-          name: BASSFORFEIT-Windows-VST3
-          path: vst/build/BASSFORFEIT_artefacts/Release/VST3/
+          name: GRAINFORFEIT-Windows-VST3
+          path: granular/build/GRAINFORFEIT_artefacts/Release/VST3/
 
   mac:
     name: Mac VST3 + AU
@@ -41,21 +41,21 @@ jobs:
         run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" -DCMAKE_OSX_DEPLOYMENT_TARGET=10.13
 
       - name: Build
-        run: cmake --build build --config Release --target BASSFORFEIT_VST3 BASSFORFEIT_AU --parallel
+        run: cmake --build build --config Release --target GRAINFORFEIT_VST3 GRAINFORFEIT_AU --parallel
 
       - name: Sign for local use and zip
         run: |
-          cd build/BASSFORFEIT_artefacts/Release
-          codesign --force --deep --sign - VST3/BASSFORFEIT.vst3
-          codesign --force --deep --sign - AU/BASSFORFEIT.component
+          cd build/GRAINFORFEIT_artefacts/Release
+          codesign --force --deep --sign - VST3/GRAINFORFEIT.vst3
+          codesign --force --deep --sign - AU/GRAINFORFEIT.component
           mkdir -p "$GITHUB_WORKSPACE/out"
-          ditto -c -k --keepParent VST3/BASSFORFEIT.vst3 "$GITHUB_WORKSPACE/out/BASSFORFEIT-Mac-VST3.zip"
-          ditto -c -k --keepParent AU/BASSFORFEIT.component "$GITHUB_WORKSPACE/out/BASSFORFEIT-Mac-AU.zip"
+          ditto -c -k --keepParent VST3/GRAINFORFEIT.vst3 "$GITHUB_WORKSPACE/out/GRAINFORFEIT-Mac-VST3.zip"
+          ditto -c -k --keepParent AU/GRAINFORFEIT.component "$GITHUB_WORKSPACE/out/GRAINFORFEIT-Mac-AU.zip"
 
       - name: Upload Mac plugins
         uses: actions/upload-artifact@v4
         with:
-          name: BASSFORFEIT-Mac
+          name: GRAINFORFEIT-Mac
           path: out/
 
   release:
@@ -75,18 +75,18 @@ jobs:
       - name: Zip the Windows plugin
         run: |
           mkdir -p out
-          cd dl/BASSFORFEIT-Windows-VST3
-          zip -rq ../../out/BASSFORFEIT-Windows-VST3.zip BASSFORFEIT.vst3
+          cd dl/GRAINFORFEIT-Windows-VST3
+          zip -rq ../../out/GRAINFORFEIT-Windows-VST3.zip GRAINFORFEIT.vst3
           cd ../..
-          cp dl/BASSFORFEIT-Mac/*.zip out/
+          cp dl/GRAINFORFEIT-Mac/*.zip out/
 
       - name: Publish as the latest release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: latest
-          name: BASSFORFEIT (latest build)
+          tag_name: grainforfeit
+          name: GRAINFORFEIT (latest build)
           body: |
-            **Windows:** download BASSFORFEIT-Windows-VST3.zip, unzip it, and copy BASSFORFEIT.vst3 to C:\Program Files\Common Files\VST3, then rescan plugins in your DAW.
+            **Windows:** download GRAINFORFEIT-Windows-VST3.zip, unzip it, and copy GRAINFORFEIT.vst3 to C:\Program Files\Common Files\VST3, then rescan plugins in your DAW and load it as an effect on any audio track.
             **Mac:** download the VST3 or AU zip and copy the plugin to ~/Library/Audio/Plug-Ins/VST3 or ~/Library/Audio/Plug-Ins/Components.
           files: out/*.zip
-          make_latest: true
+          make_latest: false

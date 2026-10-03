@@ -2,6 +2,7 @@
 
 #include "PluginProcessor.h"
 #include <juce_dsp/juce_dsp.h>
+#include <functional>
 #include <memory>
 #include <vector>
 
@@ -17,9 +18,12 @@ public:
 
     void drawButtonBackground (juce::Graphics&, juce::Button&, const juce::Colour& backgroundColour,
                                bool isHighlighted, bool isDown) override;
+
+    juce::Font getComboBoxFont (juce::ComboBox&) override;
+    juce::Font getPopupMenuFont() override;
 };
 
-// Live display: the 4-second grain buffer with every playing grain, and an output spectrum
+// Live display: the 4-second recording with every playing grain, and an output spectrum
 class Visualizer : public juce::Component, private juce::Timer
 {
 public:
@@ -45,7 +49,40 @@ private:
     std::array<float, fftSize> window {};
 };
 
-class GrainEditor : public juce::AudioProcessorEditor
+// Two-axis morph pad: drag the dot to push two chosen controls at once
+class XYPad : public juce::Component, private juce::Timer
+{
+public:
+    explicit XYPad (GrainProcessor&);
+    ~XYPad() override { stopTimer(); }
+
+    void paint (juce::Graphics&) override;
+    void mouseDown (const juce::MouseEvent&) override;
+    void mouseDrag (const juce::MouseEvent&) override;
+    void mouseUp (const juce::MouseEvent&) override;
+    void mouseDoubleClick (const juce::MouseEvent&) override;
+
+private:
+    void timerCallback() override;
+    void setFromMouse (juce::Point<float>);
+    juce::Rectangle<float> padArea() const;
+
+    GrainProcessor& proc;
+    juce::RangedAudioParameter* px;
+    juce::RangedAudioParameter* py;
+    float lastX = -1.0f, lastY = -1.0f;
+    juce::String lastLabels;
+};
+
+// Everything is laid out at a fixed size on this canvas, which is then scaled to the window
+class Canvas : public juce::Component
+{
+public:
+    std::function<void (juce::Graphics&)> painter;
+    void paint (juce::Graphics& g) override { if (painter) painter (g); }
+};
+
+class GrainEditor : public juce::AudioProcessorEditor, private juce::Timer
 {
 public:
     explicit GrainEditor (GrainProcessor&);
@@ -53,6 +90,10 @@ public:
 
     void paint (juce::Graphics&) override;
     void resized() override;
+    void updateModulationDots();
+
+    static constexpr int baseWidth = 1100;
+    static constexpr int baseHeight = 880;
 
 private:
     struct Knob
@@ -60,6 +101,7 @@ private:
         juce::Slider slider;
         juce::Label label;
         std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> attachment;
+        int dest = -1;   // modulation destination shown on this knob
     };
 
     struct Choice
@@ -83,14 +125,24 @@ private:
         juce::Rectangle<int> area;
     };
 
+    void timerCallback() override;
+    void paintCanvas (juce::Graphics&);
     void addKnob (Group&, const juce::String& paramId, const juce::String& name);
     void addChoice (Group&, const juce::String& paramId, const juce::String& name);
+    void layoutRow (juce::Rectangle<int> row, std::initializer_list<int> groupIndexes);
     void layoutGroup (Group&);
 
     GrainProcessor& proc;
     GrainLookAndFeel lnf;   // declared first so it outlives the controls
 
+    Canvas canvas;
     Visualizer visualizer;
+    XYPad pad;
+    juce::Label padXLabel, padYLabel;
+    juce::ComboBox padXBox, padYBox;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> padXAttachment, padYAttachment;
+
+    juce::ComboBox presetBox;
     juce::TextButton freezeButton { "Freeze" };
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> freezeAttachment;
 

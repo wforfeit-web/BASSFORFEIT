@@ -1,0 +1,92 @@
+name: Build TALKFORFEIT
+
+# Runs on every push, and can be started by hand from the Actions tab
+on:
+  push:
+    paths:
+      - 'talk/**'
+      - '.github/workflows/build-talk.yml'
+  workflow_dispatch:
+
+defaults:
+  run:
+    working-directory: talk
+
+jobs:
+  windows:
+    name: Windows VST3
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure
+        run: cmake -B build -A x64
+
+      - name: Build
+        run: cmake --build build --config Release --target TALKFORFEIT_VST3 --parallel
+
+      - name: Upload VST3
+        uses: actions/upload-artifact@v4
+        with:
+          name: TALKFORFEIT-Windows-VST3
+          path: talk/build/TALKFORFEIT_artefacts/Release/VST3/
+
+  mac:
+    name: Mac VST3 + AU
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure (Apple Silicon + Intel)
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" -DCMAKE_OSX_DEPLOYMENT_TARGET=10.13
+
+      - name: Build
+        run: cmake --build build --config Release --target TALKFORFEIT_VST3 TALKFORFEIT_AU --parallel
+
+      - name: Sign for local use and zip
+        run: |
+          cd build/TALKFORFEIT_artefacts/Release
+          codesign --force --deep --sign - VST3/TALKFORFEIT.vst3
+          codesign --force --deep --sign - AU/TALKFORFEIT.component
+          mkdir -p "$GITHUB_WORKSPACE/out"
+          ditto -c -k --keepParent VST3/TALKFORFEIT.vst3 "$GITHUB_WORKSPACE/out/TALKFORFEIT-Mac-VST3.zip"
+          ditto -c -k --keepParent AU/TALKFORFEIT.component "$GITHUB_WORKSPACE/out/TALKFORFEIT-Mac-AU.zip"
+
+      - name: Upload Mac plugins
+        uses: actions/upload-artifact@v4
+        with:
+          name: TALKFORFEIT-Mac
+          path: out/
+
+  release:
+    name: Publish downloads
+    needs: [windows, mac]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dl
+
+      - name: Zip the Windows plugin
+        run: |
+          mkdir -p out
+          cd dl/TALKFORFEIT-Windows-VST3
+          zip -rq ../../out/TALKFORFEIT-Windows-VST3.zip TALKFORFEIT.vst3
+          cd ../..
+          cp dl/TALKFORFEIT-Mac/*.zip out/
+
+      - name: Publish as the latest release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: talkforfeit
+          name: TALKFORFEIT (latest build)
+          body: |
+            **Windows:** download TALKFORFEIT-Windows-VST3.zip, unzip it, and copy TALKFORFEIT.vst3 to C:\Program Files\Common Files\VST3, then rescan plugins in your DAW and load it as an instrument on a MIDI track.
+            **Mac:** download the VST3 or AU zip and copy the plugin to ~/Library/Audio/Plug-Ins/VST3 or ~/Library/Audio/Plug-Ins/Components.
+          files: out/*.zip
+          make_latest: false
